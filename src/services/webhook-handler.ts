@@ -139,9 +139,41 @@ export async function handleWebhookVerify(
 export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Promise<void> {
   const pool = await getDbClient();
   
+  // Fallback to environment variables if no database connection
   if (!pool) {
-    logger.error('Database connection not available');
-    throw new Error('Database connection required');
+    logger.warn('Database connection not available - using single-user mode with env variables');
+    
+    const account = {
+      id: 'env-account',
+      chatbot_id: process.env.CHATBOT_ID || 'test-chatbot',
+      phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
+      access_token: process.env.WHATSAPP_ACCESS_TOKEN,
+      waba_id: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+      display_phone_number: process.env.WHATSAPP_DISPLAY_PHONE_NUMBER || 'Unknown'
+    };
+
+    try {
+      for (const entry of payload.entry) {
+        for (const change of entry.changes) {
+          const { field, value } = change;
+          
+          if (field === 'messages') {
+            const messages = value?.messages;
+            if (messages && messages.length > 0) {
+              for (const message of messages) {
+                await processIncomingMessageSimple(account, message, value?.contacts);
+              }
+            }
+          } else {
+            logger.info(`Webhook field received: ${field}`);
+          }
+        }
+      }
+    } catch (error) {
+      logger.error('Error processing webhook message:', error);
+      throw error;
+    }
+    return;
   }
 
   try {
@@ -204,6 +236,52 @@ export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Pro
     logger.error('Error handling webhook message:', error);
     throw error;
   }
+}
+
+/**
+ * Simple message processing without database (for testing)
+ */
+async function processIncomingMessageSimple(
+  account: any,
+  message: WhatsAppWebhookMessage,
+  contacts: Array<{ profile: { name: string }; wa_id: string }> | undefined
+): Promise<void> {
+  const from = message.from;
+  const messageId = message.id;
+  const timestamp = new Date(parseInt(message.timestamp) * 1000);
+  const type = message.type;
+
+  const contact = contacts?.find((c) => c.wa_id === from);
+  const customerName = contact?.profile?.name || 'Unknown';
+
+  let messageContent = '';
+  switch (type) {
+    case 'text':
+      messageContent = message.text?.body || '';
+      break;
+    case 'image':
+      messageContent = message.image?.caption || '[Image]';
+      break;
+    case 'audio':
+      messageContent = '[Voice message]';
+      break;
+    case 'video':
+      messageContent = message.video?.caption || '[Video]';
+      break;
+    case 'document':
+      messageContent = `[Document: ${message.document?.filename || 'document'}]`;
+      break;
+    default:
+      messageContent = `[${type}]`;
+  }
+
+  logger.info('✅ Message received (no database):', {
+    from: `${customerName} (${from})`,
+    type,
+    content: messageContent,
+    messageId,
+    timestamp: timestamp.toISOString()
+  });
 }
 
 /**
