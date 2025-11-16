@@ -143,6 +143,11 @@ export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Pro
   if (!pool) {
     logger.warn('Database connection not available - using single-user mode with env variables');
     
+    // Log the complete webhook payload from Meta
+    logger.info('📥 Complete WhatsApp Webhook Payload from Meta:', {
+      payload: JSON.stringify(payload, null, 2)
+    });
+    
     const account = {
       id: 'env-account',
       chatbot_id: process.env.CHATBOT_ID || 'test-chatbot',
@@ -154,8 +159,22 @@ export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Pro
 
     try {
       for (const entry of payload.entry) {
+        logger.info('📨 Entry Details:', {
+          businessAccountId: entry.id,
+          changesCount: entry.changes.length
+        });
+        
         for (const change of entry.changes) {
           const { field, value } = change;
+          
+          logger.info('🔄 Change Details:', {
+            field: field,
+            metadata: value?.metadata,
+            hasMessages: !!value?.messages,
+            hasStatuses: !!value?.statuses,
+            messagesCount: value?.messages?.length || 0,
+            statusesCount: value?.statuses?.length || 0
+          });
           
           if (field === 'messages') {
             const messages = value?.messages;
