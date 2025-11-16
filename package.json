@@ -1,0 +1,40 @@
+{
+  "name": "whatsapp-webhook-service",
+  "version": "1.0.0",
+  "description": "Standalone WhatsApp Webhook Service for receiving and processing WhatsApp messages",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint --ext .ts src",
+    "lint:fix": "eslint --fix --ext .ts src"
+  },
+  "keywords": [
+    "whatsapp",
+    "webhook",
+    "messaging",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.19.2",
+    "dotenv": "^16.3.1",
+    "pg": "^8.13.3",
+    "drizzle-orm": "^0.40.0",
+    "axios": "^1.7.9",
+    "winston": "^3.11.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.5",
+    "@types/pg": "^8.11.11",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5",
+    "eslint": "^8.23.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0"
+  }
+}
+
