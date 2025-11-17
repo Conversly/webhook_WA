@@ -52,9 +52,9 @@ LOG_LEVEL=info
 
 ### Step 4: Get Your Service URL
 
-After deployment, Render will provide a URL like:
+**Deployed Service URL**: 
 ```
-https://whatsapp-webhook-service.onrender.com
+https://webhook-wa-mcnp.onrender.com
 ```
 
 ### Step 5: Configure WhatsApp Webhook
@@ -64,9 +64,9 @@ https://whatsapp-webhook-service.onrender.com
 3. **Navigate to**: WhatsApp → Configuration
 4. **Set Webhook URL**: 
    ```
-   https://whatsapp-webhook-service.onrender.com/webhook
+   https://webhook-wa-mcnp.onrender.com/webhook
    ```
-5. **Set Verify Token**: Must match `WHATSAPP_VERIFY_TOKEN` from Step 3
+5. **Set Verify Token**: Must match `verify_token` in `whatsapp_accounts` table (or `WHATSAPP_VERIFY_TOKEN` env var)
 6. **Subscribe to Fields**: 
    - ✅ `messages`
    - ✅ `message_template_status_update`
@@ -76,7 +76,7 @@ https://whatsapp-webhook-service.onrender.com
 
 1. **Health Check**:
    ```bash
-   curl https://whatsapp-webhook-service.onrender.com/health
+   curl https://webhook-wa-mcnp.onrender.com/health
    ```
 
 2. **Send Test Message**: Send a WhatsApp message to your business number and check Render logs

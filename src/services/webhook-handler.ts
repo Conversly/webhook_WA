@@ -154,7 +154,7 @@ export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Pro
       phone_number_id: process.env.WHATSAPP_PHONE_NUMBER_ID,
       access_token: process.env.WHATSAPP_ACCESS_TOKEN,
       waba_id: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-      display_phone_number: process.env.WHATSAPP_DISPLAY_PHONE_NUMBER || 'Unknown'
+      phone_number: process.env.WHATSAPP_PHONE_NUMBER || process.env.WHATSAPP_DISPLAY_PHONE_NUMBER || 'Unknown'
     };
 
     try {
@@ -212,7 +212,7 @@ export async function handleWebhookMessage(payload: WhatsAppWebhookPayload): Pro
 
         // Find account(s) by phone number ID - supports multiple clients
         const accountResult = await pool.query(
-          `SELECT id, chatbot_id, phone_number_id, access_token, waba_id, display_phone_number 
+          `SELECT id, chatbot_id, phone_number_id, access_token, waba_id, phone_number 
            FROM whatsapp_accounts 
            WHERE phone_number_id = $1 AND status = 'active'`,
           [phoneNumberId]
@@ -376,59 +376,60 @@ async function processIncomingMessage(
   }
 
   try {
-    // Get or create client user
-    let clientUserResult = await pool.query(
-      `SELECT id FROM whatsapp_client_users 
-       WHERE whatsapp_account_id = $1 AND phone_number = $2 LIMIT 1`,
-      [account.id, from]
+    // Get or create contact in whatsappContacts table
+    const uniqueConvId = `whatsapp_${from}_${account.chatbot_id}`;
+    
+    let contactResult = await pool.query(
+      `SELECT id FROM whatsapp_contacts 
+       WHERE chatbot_id = $1 AND phone_number = $2 LIMIT 1`,
+      [account.chatbot_id, from]
     );
 
-    let clientUserId: number;
-    if (clientUserResult.rows.length === 0) {
+    let contactId: string;
+    if (contactResult.rows.length === 0) {
+      // Create new contact
       const insertResult = await pool.query(
-        `INSERT INTO whatsapp_client_users 
-         (whatsapp_account_id, phone_number, name, source, opt_in_status, created_at, updated_at)
-         VALUES ($1, $2, $3, 'organic', true, NOW(), NOW())
+        `INSERT INTO whatsapp_contacts 
+         (chatbot_id, phone_number, display_name, whatsapp_user_metadata, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, NOW(), NOW())
          RETURNING id`,
-        [account.id, from, customerName]
+        [
+          account.chatbot_id,
+          from,
+          customerName,
+          JSON.stringify({
+            wa_id: from,
+            profile: { name: customerName },
+            first_seen_at: timestamp.toISOString(),
+            last_seen_at: timestamp.toISOString(),
+            last_inbound_message_id: messageId,
+            waba_id: account.waba_id,
+            phone_number_id: account.phone_number_id,
+            display_phone_number: account.phone_number || '',
+            source: 'organic',
+            opt_in_status: true,
+          }),
+        ]
       );
-      clientUserId = insertResult.rows[0].id;
+      contactId = insertResult.rows[0].id;
     } else {
-      clientUserId = clientUserResult.rows[0].id;
-      // Update last seen
+      contactId = contactResult.rows[0].id;
+      // Update contact metadata
       await pool.query(
-        `UPDATE whatsapp_client_users SET last_seen = NOW(), updated_at = NOW() WHERE id = $1`,
-        [clientUserId]
+        `UPDATE whatsapp_contacts 
+         SET display_name = $1, 
+             whatsapp_user_metadata = jsonb_set(
+               COALESCE(whatsapp_user_metadata, '{}'::jsonb),
+               '{last_seen_at}',
+               to_jsonb($2::text)
+             ),
+             updated_at = NOW()
+         WHERE id = $3`,
+        [customerName, timestamp.toISOString(), contactId]
       );
     }
 
-    // Get or create conversation
-    const waConversationId = `${from}_${account.id}`;
-    let conversationResult = await pool.query(
-      `SELECT id FROM whatsapp_conversations WHERE wa_conversation_id = $1 LIMIT 1`,
-      [waConversationId]
-    );
-
-    let conversationId: number;
-    if (conversationResult.rows.length === 0) {
-      const insertResult = await pool.query(
-        `INSERT INTO whatsapp_conversations 
-         (whatsapp_account_id, whatsapp_client_user_id, wa_conversation_id, started_at, status, ai_involved, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'open', true, NOW(), NOW())
-         RETURNING id`,
-        [account.id, clientUserId, waConversationId, timestamp]
-      );
-      conversationId = insertResult.rows[0].id;
-    } else {
-      conversationId = conversationResult.rows[0].id;
-      // Reopen if closed
-      await pool.query(
-        `UPDATE whatsapp_conversations SET status = 'open', updated_at = NOW() WHERE id = $1 AND status = 'closed'`,
-        [conversationId]
-      );
-    }
-
-    // Store user message
+    // Store message in unified messages table
     const dbMessageType = (type === 'text' || type === 'button' || type === 'interactive') 
       ? 'text' 
       : type === 'image' || type === 'video' || type === 'document' 
@@ -436,26 +437,19 @@ async function processIncomingMessage(
         : 'text';
 
     await pool.query(
-      `INSERT INTO whatsapp_messages 
-       (conversation_id, wa_message_id, sender_type, message_type, content, status, timestamp, created_at, updated_at)
-       VALUES ($1, $2, 'user', $3, $4, 'delivered', $5, NOW(), NOW())`,
-      [conversationId, messageId, dbMessageType, messageContent, timestamp]
-    );
-
-    // Also store in unified messages table
-    await pool.query(
       `INSERT INTO messages 
        (id, chatbot_id, channel, type, content, unique_conv_id, channel_message_metadata, created_at)
        VALUES (gen_random_uuid(), $1, 'WHATSAPP', 'user', $2, $3, $4, $5)`,
       [
         account.chatbot_id,
         messageContent,
-        conversationId,
+        uniqueConvId,
         JSON.stringify({
           phoneNumber: from,
           waMessageId: messageId,
           messageType: dbMessageType,
           timestamp: timestamp.toISOString(),
+          contactId: contactId,
         }),
         timestamp,
       ]
@@ -478,17 +472,17 @@ async function processIncomingMessage(
     const responseApiUrl = process.env.RESPONSE_API_BASE_URL || 'http://localhost:8030';
     const uniqueClientId = `whatsapp_${from}_${account.chatbot_id}`;
 
-    // Get conversation history
+    // Get conversation history from messages table
     const historyResult = await pool.query(
-      `SELECT content, sender_type FROM whatsapp_messages 
-       WHERE conversation_id = $1 
-       ORDER BY timestamp ASC 
+      `SELECT content, type FROM messages 
+       WHERE chatbot_id = $1 AND unique_conv_id = $2 AND channel = 'WHATSAPP'
+       ORDER BY created_at ASC 
        LIMIT 10`,
-      [conversationId]
+      [account.chatbot_id, uniqueConvId]
     );
 
     const messagesArray = historyResult.rows.map((msg: any) => ({
-      role: msg.sender_type === 'user' ? 'user' : 'assistant',
+      role: msg.type === 'user' ? 'user' : 'assistant',
       content: msg.content,
     }));
 
@@ -527,15 +521,6 @@ async function processIncomingMessage(
     const responseTime = Date.now() - startTime;
 
     if (responseData.success && responseData.response) {
-      // Store AI response message
-      const aiMessageId = responseData.message_id || `ai_${Date.now()}`;
-      await pool.query(
-        `INSERT INTO whatsapp_messages 
-         (conversation_id, wa_message_id, sender_type, message_type, content, status, timestamp, response_time_ms, created_at, updated_at)
-         VALUES ($1, $2, 'ai', 'text', $3, 'sent', NOW(), $4, NOW(), NOW())`,
-        [conversationId, aiMessageId, responseData.response, responseTime]
-      );
-
       // Send response back via WhatsApp API
       const sendResult = await sendWhatsAppMessage({
         phoneNumberId: account.phone_number_id,
@@ -544,17 +529,9 @@ async function processIncomingMessage(
         message: responseData.response,
       });
 
-      const finalMessageId = sendResult.messageId || aiMessageId;
+      const finalMessageId = sendResult.messageId || `ai_${Date.now()}`;
 
-      // Update message with WhatsApp message ID
-      if (sendResult.messageId) {
-        await pool.query(
-          `UPDATE whatsapp_messages SET wa_message_id = $1, updated_at = NOW() WHERE wa_message_id = $2`,
-          [sendResult.messageId, aiMessageId]
-        );
-      }
-
-      // Store in unified messages table
+      // Store AI response in unified messages table
       await pool.query(
         `INSERT INTO messages 
          (id, chatbot_id, channel, type, content, unique_conv_id, citations, channel_message_metadata, created_at)
@@ -562,13 +539,14 @@ async function processIncomingMessage(
         [
           account.chatbot_id,
           responseData.response,
-          conversationId,
+          uniqueConvId,
           JSON.stringify(responseData.citations || []),
           JSON.stringify({
             phoneNumber: from,
             waMessageId: finalMessageId,
             messageType: 'text',
             responseTimeMs: responseTime,
+            contactId: contactId,
           }),
         ]
       );
@@ -624,10 +602,17 @@ async function processMessageStatus(
     logger.error('  Delivery failed:', errorCode, errorMessage);
   }
 
-  // Update message status in database
+  // Update message status in database (messages table)
   try {
     await pool.query(
-      `UPDATE whatsapp_messages SET status = $1, updated_at = NOW() WHERE wa_message_id = $2`,
+      `UPDATE messages 
+       SET channel_message_metadata = jsonb_set(
+         COALESCE(channel_message_metadata, '{}'::jsonb),
+         '{status}',
+         to_jsonb($1::text)
+       )
+       WHERE channel = 'WHATSAPP' 
+       AND channel_message_metadata->>'waMessageId' = $2`,
       [statusValue, messageId]
     );
   } catch (error) {

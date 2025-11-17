@@ -79,12 +79,12 @@ git push -u origin main
 
 ### Step 3: Configure WhatsApp Webhook
 
-1. Get your Render service URL: `https://whatsapp-webhook-service.onrender.com`
+1. **Deployed Service URL**: `https://webhook-wa-mcnp.onrender.com`
 2. Go to [Meta Developer Console](https://developers.facebook.com/)
 3. Navigate to your WhatsApp Business App
 4. Go to **WhatsApp → Configuration**
-5. Set **Webhook URL**: `https://whatsapp-webhook-service.onrender.com/webhook`
-6. Set **Verify Token**: Must match `WHATSAPP_VERIFY_TOKEN` in your `.env`
+5. Set **Webhook URL**: `https://webhook-wa-mcnp.onrender.com/webhook`
+6. Set **Verify Token**: Must match `verify_token` in `whatsapp_accounts` table (or `WHATSAPP_VERIFY_TOKEN` env var)
 7. Subscribe to fields: `messages`, `message_template_status_update`
 8. Click **Verify and Save**
 
@@ -194,7 +194,7 @@ See [MULTI_CLIENT_GUIDE.md](./MULTI_CLIENT_GUIDE.md) for detailed information.
 ### How It Works
 
 1. **Client creates WhatsApp integration** via your main API
-2. **All clients use same webhook URL**: `https://your-service.onrender.com/webhook`
+2. **All clients use same webhook URL**: `https://webhook-wa-mcnp.onrender.com/webhook`
 3. **Service looks up client** by phone number ID from database
 4. **Messages routed automatically** to correct client's chatbot
 5. **AI responses** use each client's own API key

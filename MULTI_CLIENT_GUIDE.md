@@ -55,7 +55,7 @@ POST /api/v1/whatsapp/integration
   "accessToken": "client-1-access-token",
   "verifyToken": "client-1-verify-token",
   "businessAccountId": "client-1-waba-id",
-  "webhookUrl": "https://your-webhook-service.onrender.com/webhook"
+  "webhookUrl": "https://webhook-wa-mcnp.onrender.com/webhook"
 }
 ```
 
@@ -64,7 +64,7 @@ POST /api/v1/whatsapp/integration
 **Important**: All clients should use the **same webhook URL**:
 
 ```
-https://your-webhook-service.onrender.com/webhook
+https://webhook-wa-mcnp.onrender.com/webhook
 ```
 
 But each client can have a **different verify token** (stored in database).
@@ -112,13 +112,13 @@ The webhook service:
 - **Phone Number ID**: `123456789`
 - **Chatbot ID**: `ecommerce-chatbot-id`
 - **Verify Token**: `ecommerce-token-123`
-- **Webhook URL**: `https://webhook.onrender.com/webhook`
+- **Webhook URL**: `https://webhook-wa-mcnp.onrender.com/webhook`
 
 ### Client 2: Customer Support
 - **Phone Number ID**: `987654321`
 - **Chatbot ID**: `support-chatbot-id`
 - **Verify Token**: `support-token-456`
-- **Webhook URL**: `https://webhook.onrender.com/webhook` (same URL!)
+- **Webhook URL**: `https://webhook-wa-mcnp.onrender.com/webhook` (same URL!)
 
 ### How Messages Are Routed
 
@@ -243,4 +243,5 @@ Each client's API key is automatically used from the database.
 ✅ **Scalable** to unlimited clients
 
 The service is designed to be **multi-tenant** from the ground up!
+
 

@@ -62,11 +62,11 @@ curl http://localhost:3000/health
    - Add environment variables
    - Deploy!
 
-3. **Get URL**: `https://your-service.onrender.com`
+3. **Deployed Service URL**: `https://webhook-wa-mcnp.onrender.com`
 
 4. **Configure WhatsApp**:
    - Meta Console → WhatsApp → Configuration
-   - Webhook URL: `https://your-service.onrender.com/webhook`
+   - Webhook URL: `https://webhook-wa-mcnp.onrender.com/webhook`
    - Verify Token: (your `WHATSAPP_VERIFY_TOKEN`)
    - Subscribe: `messages`, `message_template_status_update`
 

@@ -38,12 +38,12 @@ A **standalone WhatsApp webhook service** that:
 
 3. **Get Your URL**
    ```
-   https://whatsapp-webhook-service.onrender.com
+   https://webhook-wa-mcnp.onrender.com
    ```
 
 4. **Configure WhatsApp**
    - Meta Console → WhatsApp → Configuration
-   - Webhook URL: `https://your-service.onrender.com/webhook`
+   - Webhook URL: `https://webhook-wa-mcnp.onrender.com/webhook`
    - Verify Token: (from database or env)
    - Subscribe: `messages`, `message_template_status_update`
 
@@ -121,7 +121,7 @@ Same webhook URL for both!
    → Stores in database (z-terminal)
 
 2. Client configures webhook in Meta Console
-   → Points to: https://webhook-service.onrender.com/webhook
+   → Points to: https://webhook-wa-mcnp.onrender.com/webhook
    → Uses verify_token from database
 
 3. User sends WhatsApp message
