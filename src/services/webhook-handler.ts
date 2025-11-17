@@ -1,6 +1,7 @@
 import logger from '../config/logger';
 import axios from 'axios';
 import { getDbClient } from '../config/database';
+import { createId } from '@paralleldrive/cuid2';
 
 // Types for WhatsApp webhook payload
 interface WhatsAppWebhookMessage {
@@ -387,13 +388,15 @@ async function processIncomingMessage(
 
     let contactId: string;
     if (contactResult.rows.length === 0) {
-      // Create new contact
+      // Create new contact - generate ID using createId()
+      const newContactId = createId();
       const insertResult = await pool.query(
         `INSERT INTO whatsapp_contacts 
-         (chatbot_id, phone_number, display_name, whatsapp_user_metadata, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, NOW(), NOW())
+         (id, chatbot_id, phone_number, display_name, whatsapp_user_metadata, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
          RETURNING id`,
         [
+          newContactId,
           account.chatbot_id,
           from,
           customerName,
@@ -562,8 +565,16 @@ async function processIncomingMessage(
         message: 'Sorry, I encountered an error processing your message. Please try again later.',
       });
     }
-  } catch (error) {
-    logger.error('Error processing incoming message:', error);
+  } catch (error: any) {
+    // Log error safely (handle circular references)
+    const errorMessage = error?.message || String(error);
+    const errorStack = error?.stack || '';
+    logger.error('Error processing incoming message:', {
+      message: errorMessage,
+      stack: errorStack,
+      code: error?.code,
+      detail: error?.detail,
+    });
     // Try to send error message
     try {
       await sendWhatsAppMessage({
@@ -572,8 +583,13 @@ async function processIncomingMessage(
         to: from,
         message: 'Sorry, I encountered an error. Please try again later.',
       });
-    } catch (sendError) {
-      logger.error('Failed to send error message:', sendError);
+    } catch (sendError: any) {
+      // Log send error safely
+      const sendErrorMessage = sendError?.message || String(sendError);
+      logger.error('Failed to send error message:', {
+        message: sendErrorMessage,
+        code: sendError?.code,
+      });
     }
   }
 }
