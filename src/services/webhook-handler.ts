@@ -418,14 +418,17 @@ async function processIncomingMessage(
     } else {
       contactId = contactResult.rows[0].id;
       // Update contact metadata
+      // Cast json to jsonb for jsonb_set operation, then cast back to json
       await pool.query(
         `UPDATE whatsapp_contacts 
          SET display_name = $1, 
-             whatsapp_user_metadata = jsonb_set(
-               COALESCE(whatsapp_user_metadata, '{}'::jsonb),
-               '{last_seen_at}',
-               to_jsonb($2::text)
-             ),
+             whatsapp_user_metadata = (
+               jsonb_set(
+                 COALESCE(whatsapp_user_metadata::jsonb, '{}'::jsonb),
+                 '{last_seen_at}',
+                 to_jsonb($2::text)
+               )
+             )::json,
              updated_at = NOW()
          WHERE id = $3`,
         [customerName, timestamp.toISOString(), contactId]
